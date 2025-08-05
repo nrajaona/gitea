@@ -1,0 +1,62 @@
+version: "3"
+
+services:
+  server:
+    image: gitea/gitea
+    container_name: gitea
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - GITEA__database__DB_TYPE=postgres
+      - GITEA__database__HOST=db:5432
+      - GITEA__database__NAME=gitea
+      - GITEA__database__USER=gitea
+      - GITEA__database__PASSWD=${GITEA_DB_PASSWORD}
+    restart: always
+    volumes:
+      - ./gitea:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    depends_on:
+      - db
+    networks:
+      - proxy
+    ports:
+      - 3000:3000
+    security_opt:
+      - no-new-privileges:true
+
+  db:
+    image: postgres:14
+    restart: always
+    environment:
+      - POSTGRES_USER=gitea
+      - POSTGRES_PASSWORD=gitea
+      - POSTGRES_DB=gitea
+    volumes:
+      - ./postgres:/var/lib/postgresql/data
+    networks:
+      - proxy
+
+  runner:
+    image: gitea/act_runner:latest
+    container_name: gitea-runner
+    restart: always
+    depends_on:
+      - server
+    environment:
+      - GITEA_INSTANCE_URL=http://server:3000
+      - GITEA_RUNNER_REGISTRATION_TOKEN=${GITEA_RUNNER_REGISTRATION_TOKEN}
+      - GITEA_RUNNER_NAME=docker-runner
+      - GITEA_RUNNER_LABELS=ubuntu-latest:docker://node:16-bullseye,ubuntu-22.04:docker://node:16-bullseye,ubuntu-20.04:docker://node:16-bullseye
+    volumes:
+      - ./runner-data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - proxy
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  proxy:
+    external: true
